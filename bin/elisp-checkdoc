@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Run checkdoc on a set of files and stop a commit that has any complaints.
+# Note that it exits cleanly, so any output is considered a failure.
+#
+# Usage:
+#     elisp-checkdoc file1.el file2.el ...
+set -eu
+
+EMACS=${EMACS:-emacs}
+
+program='(progn
+  (require (quote checkdoc))
+  (setq checkdoc-verb-check-experimental-flag nil)
+  (dolist (file command-line-args-left)
+    (checkdoc-file file)))'
+
+[ $# -gt 0 ] || exit 0
+
+output=$("$EMACS" -Q --batch --eval "$program" "$@" 2>&1) || true
+if [ -n "$output" ]; then
+  printf '%s\n' "$output"
+  exit 1
+fi

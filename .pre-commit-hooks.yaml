@@ -1,0 +1,8 @@
+- id: elisp-checkdoc
+  name: elisp checkdoc
+  description: Report checkdoc complaints and stop a commit that has any.
+  entry: bin/elisp-checkdoc
+  language: unsupported_script
+  files: \.el$
+  exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
+  require_serial: true
