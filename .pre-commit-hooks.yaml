@@ -1,7 +1,7 @@
 - id: elisp-checkdoc
   name: elisp checkdoc
   description: Report checkdoc complaints and stop a commit that has any.
-  entry: bin/elisp-checkdoc
+  entry: hooks/elisp-checkdoc
   language: unsupported_script
   files: \.el$
   exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
@@ -10,7 +10,7 @@
 - id: elisp-check-parens
   name: elisp check-parens
   description: Stop a commit with unbalanced parens, brackets, quotes or strings.
-  entry: bin/elisp-check-parens
+  entry: hooks/elisp-check-parens
   language: unsupported_script
   files: \.el$
   exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
@@ -19,7 +19,7 @@
 - id: elisp-check-byte-compile
   name: elisp check-byte-compile
   description: Stop a commit whose Emacs Lisp does not byte-compile cleanly.
-  entry: bin/elisp-check-byte-compile
+  entry: hooks/elisp-check-byte-compile
   language: unsupported_script
   files: \.el$
   exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
@@ -28,7 +28,7 @@
 - id: elisp-check-declare
   name: elisp check-declare
   description: Verify declare-function forms and stop a commit where one is stale.
-  entry: bin/elisp-check-declare
+  entry: hooks/elisp-check-declare
   language: unsupported_script
   files: \.el$
   exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
@@ -37,7 +37,7 @@
 - id: elisp-indent
   name: elisp indent
   description: Reindent Emacs Lisp in place and stop a commit that was misindented.
-  entry: bin/elisp-indent
+  entry: hooks/elisp-indent
   language: unsupported_script
   files: \.el$
   exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
