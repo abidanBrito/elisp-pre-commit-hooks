@@ -24,3 +24,12 @@
   files: \.el$
   exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
   require_serial: true
+
+- id: elisp-check-declare
+  name: elisp check-declare
+  description: Verify declare-function forms and stop a commit where one is stale.
+  entry: bin/elisp-check-declare
+  language: unsupported_script
+  files: \.el$
+  exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
+  require_serial: true
