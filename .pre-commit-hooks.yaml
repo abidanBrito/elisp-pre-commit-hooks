@@ -33,3 +33,12 @@
   files: \.el$
   exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
   require_serial: true
+
+- id: elisp-indent
+  name: elisp indent
+  description: Reindent Emacs Lisp in place and stop a commit that was misindented.
+  entry: bin/elisp-indent
+  language: unsupported_script
+  files: \.el$
+  exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
+  require_serial: true
