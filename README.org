@@ -1,0 +1,55 @@
+#+TITLE: elisp-pre-commit-hooks
+#+AUTHOR: Abidán Brito Clavijo
+#+EMAIL: abidan.brito@gmail.com
+
+[[https://github.com/abidanBrito/elisp-package-template/blob/main/LICENSE][file:https://img.shields.io/badge/License-MIT-orange.svg]]
+
+A small collection of [[https://pre-commit.com/][pre-commit]] hooks for Emacs Lisp. Every hook is a plain POSIX shell script, so there is no hard dependency beyond [[https://www.gnu.org/software/emacs/][GNU Emacs]] itself.
+
+* Hooks
+
+| ID                       | What it does                                              |
+|--------------------------+-----------------------------------------------------------|
+| =elisp-check-parens=       | Fails on unbalanced parens, brackets, quotes or strings.  |
+| =elisp-check-byte-compile= | Byte-compiles each file with warnings as errors.          |
+| =elisp-indent=             | Reindents in place and fails if any file had to change.   |
+| =elisp-checkdoc=           | Runs checkdoc and fails the commit on any complaint.      |
+| =elisp-check-declare=      | Verifies =declare-function= forms and fails on a stale one. |
+
+All hooks skip =*-autoloads.el=, =*-pkg.el= and =.dir-locals.el=.
+
+#+begin_quote
+Any hook that loads your code puts the repository root and its =test/= and =lisp/= directories, where present, on the load path, so that intra-package =require= forms resolve successfully.
+#+end_quote
+
+* Usage
+
+Add this to your =.pre-commit-config.yaml=:
+
+#+begin_src yaml
+  repos:
+    - repo: https://github.com/abidanBrito/elisp-pre-commit-hooks
+      rev: v0.1.0  # pin to a tag or commit
+      hooks:
+        - id: elisp-check-parens
+        - id: elisp-check-byte-compile
+        - id: elisp-indent
+        - id: elisp-checkdoc
+        - id: elisp-check-declare
+#+end_src
+
+Then install and run:
+
+#+begin_src sh
+  pre-commit install
+  pre-commit run --all-files
+#+end_src
+
+* Requirements
+
+- [[https://pre-commit.com/][pre-commit]].
+- [[https://www.gnu.org/software/emacs/][GNU Emacs]], either on =PATH= or at the path named by the =EMACS= environment variable.
+
+* License
+
+This repository is released under the MIT license. See [[file:LICENSE][LICENSE]] for details.
