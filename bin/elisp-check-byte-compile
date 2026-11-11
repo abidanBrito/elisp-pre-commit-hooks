@@ -1,0 +1,41 @@
+#!/bin/sh
+#
+# Byte-compile a set of files and stop a commit that does not compile cleanly.
+# Warnings are treated as errors and the .elc output is discarded.
+#
+# Usage:
+#     elisp-check-byte-compile file1.el file2.el ...
+set -eu
+
+EMACS=${EMACS:-emacs}
+root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+program='(progn
+  (require (quote bytecomp))
+  (let ((ok t)
+      (byte-compile-error-on-warn t)
+      (tmp (make-temp-file "elisp-check-byte-compile" t)))
+  (unwind-protect
+      (let ((byte-compile-dest-file-function
+             (lambda (src)
+               (expand-file-name (concat (file-name-nondirectory src) "c") tmp))))
+        (dolist (file command-line-args-left)
+          (condition-case err
+              (unless (byte-compile-file file)
+                (setq ok nil))
+            (error
+             (setq ok nil)
+             (message "%s: %s" file (error-message-string err))))))
+    (delete-directory tmp t))
+  (kill-emacs (if ok 0 1))))'
+
+[ $# -gt 0 ] || exit 0
+
+# The options go in front of the file names, which pre-commit leaves at
+# the end, so they are prepended in reverse of their final order.
+set -- --eval "$program" "$@"
+[ -d "$root/test" ] && set -- -L "$root/test" "$@"
+[ -d "$root/lisp" ] && set -- -L "$root/lisp" "$@"
+set -- -L "$root" "$@"
+
+exec "$EMACS" -Q --batch "$@"
