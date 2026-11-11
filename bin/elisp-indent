@@ -1,0 +1,41 @@
+#!/bin/sh
+#
+# Reindent a set of files in place and stop a commit that was misindented.
+# A file that fails to load is reported and left alone, which is not a failure.
+#
+# Usage:
+#     elisp-indent file1.el file2.el ...
+set -eu
+
+EMACS=${EMACS:-emacs}
+root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+program='(let ((changed nil))
+  (dolist (file command-line-args-left)
+    (condition-case err
+        (load (expand-file-name file) nil t)
+      (:success
+       (with-current-buffer (find-file-noselect file)
+         (let ((original (buffer-string)))
+           (let ((inhibit-message t))
+             (indent-region (point-min) (point-max)))
+           (unless (string= original (buffer-string))
+             (setq changed t)
+             (let ((inhibit-message t))
+               (save-buffer))
+             (message "reindented %s" file)))))
+      (error
+       (message "left %s alone, it does not load: %s"
+                file (error-message-string err)))))
+  (kill-emacs (if changed 1 0)))'
+
+[ $# -gt 0 ] || exit 0
+
+# The options go in front of the file names, which pre-commit leaves at
+# the end, so they are prepended in reverse of their final order.
+set -- --eval "$program" "$@"
+[ -d "$root/test" ] && set -- -L "$root/test" "$@"
+[ -d "$root/lisp" ] && set -- -L "$root/lisp" "$@"
+set -- -L "$root" "$@"
+
+exec "$EMACS" -Q --batch "$@"
