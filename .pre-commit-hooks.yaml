@@ -15,3 +15,12 @@
   files: \.el$
   exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
   require_serial: true
+
+- id: elisp-check-byte-compile
+  name: elisp check-byte-compile
+  description: Stop a commit whose Emacs Lisp does not byte-compile cleanly.
+  entry: bin/elisp-check-byte-compile
+  language: unsupported_script
+  files: \.el$
+  exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
+  require_serial: true
