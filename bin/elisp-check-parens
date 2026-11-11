@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# Run check-parens on a set of files and stop a commit with any mismatch.
+# Files are read in emacs-lisp-mode so quotes and comments are honored.
+#
+# Usage:
+#     elisp-check-parens file1.el file2.el ...
+set -eu
+
+EMACS=${EMACS:-emacs}
+
+program='(let ((bad nil))
+  (dolist (file command-line-args-left)
+    (with-temp-buffer
+      (insert-file-contents file)
+      (delay-mode-hooks (emacs-lisp-mode))
+      (condition-case err
+          (check-parens)
+        (error
+         (setq bad t)
+         (message "%s:%d: %s"
+                  file (line-number-at-pos) (error-message-string err))))))
+  (kill-emacs (if bad 1 0)))'
+
+[ $# -gt 0 ] || exit 0
+
+exec "$EMACS" -Q --batch --eval "$program" "$@"

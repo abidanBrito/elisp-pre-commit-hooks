@@ -6,3 +6,12 @@
   files: \.el$
   exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
   require_serial: true
+
+- id: elisp-check-parens
+  name: elisp check-parens
+  description: Stop a commit with unbalanced parens, brackets, quotes or strings.
+  entry: bin/elisp-check-parens
+  language: unsupported_script
+  files: \.el$
+  exclude: (-autoloads\.el|-pkg\.el|\.dir-locals\.el)$
+  require_serial: true
