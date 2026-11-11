@@ -1,0 +1,37 @@
+#!/bin/sh
+#
+# Check declare-function forms and stop a commit where one has gone stale.
+# Note that check-declare exits cleanly, so any warning is considered a failure.
+#
+# Usage:
+#     elisp-check-declare file1.el file2.el ...
+set -eu
+
+EMACS=${EMACS:-emacs}
+root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+program='(progn
+  (require (quote check-declare))
+  (let ((failed nil))
+    (dolist (file command-line-args-left)
+      (check-declare-file file))
+    (let ((buf (get-buffer check-declare-warning-buffer)))
+      (when buf
+        (with-current-buffer buf
+          (goto-char (point-min))
+          (skip-chars-forward " \t\n\f")
+          (unless (eobp)
+            (setq failed t)
+            (princ (buffer-string))))))
+    (kill-emacs (if failed 1 0))))'
+
+[ $# -gt 0 ] || exit 0
+
+# The options go in front of the file names, which pre-commit leaves at
+# the end, so they are prepended in reverse of their final order.
+set -- --eval "$program" "$@"
+[ -d "$root/test" ] && set -- -L "$root/test" "$@"
+[ -d "$root/lisp" ] && set -- -L "$root/lisp" "$@"
+set -- -L "$root" "$@"
+
+exec "$EMACS" -Q --batch "$@" 2>/dev/null
