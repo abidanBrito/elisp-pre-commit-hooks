@@ -17,3 +17,11 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
+
+  - repo: local
+    hooks:
+      - id: org-no-result-blocks
+        name: no Org Babel results in Org files
+        language: pygrep
+        entry: '(?i)^\s*#\+results(\[.*\])?:'
+        files: \.org$
