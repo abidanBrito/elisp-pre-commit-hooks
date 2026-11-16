@@ -50,6 +50,10 @@ Then install and run:
 - [[https://pre-commit.com/][pre-commit]].
 - [[https://www.gnu.org/software/emacs/][GNU Emacs]], either on =PATH= or at the path named by the =EMACS= environment variable.
 
+* Development
+
+The scripts in =hooks/= are generated from [[file:hooks.org][hooks.org]]. Edit them there, run their tests, retangle and commit both files.
+
 * License
 
 This repository is released under the MIT license. See [[file:LICENSE][LICENSE]] for details.
