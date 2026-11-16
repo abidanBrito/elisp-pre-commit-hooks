@@ -1,0 +1,461 @@
+#+TITLE: Emacs Lisp git hook sources
+#+PROPERTY: header-args :noweb yes :noweb-prefix no
+#+PROPERTY: header-args:sh :results output
+#+PROPERTY: header-args:emacs-lisp :eval no
+#+STARTUP: content
+
+* Workflow
+
+All scripts in =hooks/= are generated from this master file. To change one:
+
+1. Edit its program or script block below.
+2. Run its =Tests= block with =C-c C-c=. It runs the hook against a good and a bad file in a temporary directory, printing its output and exit code.
+3. Retangle with =C-c C-v t=.
+
+#+begin_note
+Each Emacs Lisp program ends up inside a single-quoted shell string, so it must not contain a single quote. You may write =(quote x)= instead of ='x=.
+#+end_note
+
+* Shared pieces
+
+Hooks that load your code put the repository root, =lisp/= and =test/= on the load path.
+
+#+name: load-path
+#+begin_src sh
+  # The options go in front of the file names, which pre-commit leaves at
+  # the end, so they are prepended in reverse of their final order.
+  set -- --eval "$program" "$@"
+  [ -d "$root/test" ] && set -- -L "$root/test" "$@"
+  [ -d "$root/lisp" ] && set -- -L "$root/lisp" "$@"
+  set -- -L "$root" "$@"
+#+end_src
+
+Every =Tests= block writes its hook and a good and a bad file to a temporary directory, then runs the hook on each and prints its output and exit code. Setting =show=1= also prints each file after the hook has run.
+
+#+name: test-setup
+#+begin_src sh :eval no
+  dir=$(mktemp -d)
+#+end_src
+
+#+name: run-tests
+#+begin_src sh :eval no
+  for f in good bad; do
+    [ "$f" = good ] || echo
+    echo "--- $f.el"
+    sh "$dir/hook" "$dir/$f.el" 2>&1
+    echo "exit=$?"
+    [ "${show:-}" = 1 ] && cat "$dir/$f.el"
+  done
+  rm -rf "$dir"
+#+end_src
+
+* Hooks
+
+** elisp-checkdoc
+
+*** Program
+
+#+name: checkdoc-program
+#+begin_src emacs-lisp
+  (progn
+    (require (quote checkdoc))
+    (setq checkdoc-verb-check-experimental-flag nil)
+    (dolist (file command-line-args-left)
+      (checkdoc-file file)))
+#+end_src
+
+*** Script
+
+#+name: checkdoc-script
+#+begin_src sh :tangle hooks/elisp-checkdoc :shebang "#!/bin/sh"
+  #
+  # Run checkdoc on a set of files and stop a commit that has any complaints.
+  # Note that it exits cleanly, so any output is considered a failure.
+  #
+  # Usage:
+  #     elisp-checkdoc file1.el file2.el ...
+  set -eu
+
+  EMACS=${EMACS:-emacs}
+
+  program='<<checkdoc-program>>'
+
+  [ $# -gt 0 ] || exit 0
+
+  output=$("$EMACS" -Q --batch --eval "$program" "$@" 2>&1) || true
+  if [ -n "$output" ]; then
+    printf '%s\n' "$output"
+    exit 1
+  fi
+#+end_src
+
+*** Tests
+
+#+name: checkdoc-good
+#+begin_src emacs-lisp
+  ;;; good.el --- A file with good documentation -*- lexical-binding: t -*-
+
+  ;;; Commentary:
+
+  ;; Just some comment, nothing to see here.
+
+  ;;; Code:
+
+  (defun good-add (a b)
+    "Return the sum of A and B."
+    (+ a b))
+
+  (provide (quote good))
+  ;;; good.el ends here
+#+end_src
+
+#+name: checkdoc-bad
+#+begin_src emacs-lisp
+  ;;; bad.el --- A file with no docstrings -*- lexical-binding: t -*-
+
+  ;;; Commentary:
+
+  ;;; Code:
+
+  (defun bad-add (a b)
+    (+ a b))
+
+  (provide (quote bad))
+  ;;; bad.el ends here
+#+end_src
+
+#+begin_src sh
+  <<test-setup>>
+  cat > "$dir/hook" <<'EOF'
+  <<checkdoc-script>>
+  EOF
+  cat > "$dir/good.el" <<'EOF'
+  <<checkdoc-good>>
+  EOF
+  cat > "$dir/bad.el" <<'EOF'
+  <<checkdoc-bad>>
+  EOF
+  <<run-tests>>
+#+end_src
+
+** elisp-check-parens
+
+*** Program
+
+#+name: check-parens-program
+#+begin_src emacs-lisp
+  (let ((bad nil))
+    (dolist (file command-line-args-left)
+      (with-temp-buffer
+        (insert-file-contents file)
+        (delay-mode-hooks (emacs-lisp-mode))
+        (condition-case err
+            (check-parens)
+          (error
+           (setq bad t)
+           (message "%s:%d: %s"
+                    file (line-number-at-pos) (error-message-string err))))))
+    (kill-emacs (if bad 1 0)))
+#+end_src
+
+*** Script
+
+#+name: check-parens-script
+#+begin_src sh :tangle hooks/elisp-check-parens :shebang "#!/bin/sh"
+  #
+  # Run check-parens on a set of files and stop a commit with any mismatch.
+  # Files are read in emacs-lisp-mode so quotes and comments are honored.
+  #
+  # Usage:
+  #     elisp-check-parens file1.el file2.el ...
+  set -eu
+
+  EMACS=${EMACS:-emacs}
+
+  program='<<check-parens-program>>'
+
+  [ $# -gt 0 ] || exit 0
+
+  exec "$EMACS" -Q --batch --eval "$program" "$@"
+#+end_src
+
+*** Tests
+
+#+name: check-parens-good
+#+begin_src emacs-lisp
+  (defun good-add (a b)
+    "A string with a ) in it, and a \"quote\"."
+    (+ a b))
+#+end_src
+
+#+name: check-parens-bad
+#+begin_src emacs-lisp
+  (defun bad-add (a b)
+    (+ a b)
+#+end_src
+
+#+begin_src sh
+  <<test-setup>>
+  cat > "$dir/hook" <<'EOF'
+  <<check-parens-script>>
+  EOF
+  cat > "$dir/good.el" <<'EOF'
+  <<check-parens-good>>
+  EOF
+  cat > "$dir/bad.el" <<'EOF'
+  <<check-parens-bad>>
+  EOF
+  <<run-tests>>
+#+end_src
+
+** elisp-check-byte-compile
+
+*** Program
+
+#+name: check-byte-compile-program
+#+begin_src emacs-lisp
+  (progn
+    (require (quote bytecomp))
+    (let ((ok t)
+          (byte-compile-error-on-warn t)
+          (tmp (make-temp-file "elisp-check-byte-compile" t)))
+      (unwind-protect
+          (let ((byte-compile-dest-file-function
+                 (lambda (src)
+                   (expand-file-name (concat (file-name-nondirectory src) "c") tmp))))
+            (dolist (file command-line-args-left)
+              (condition-case err
+                  (unless (byte-compile-file file)
+                    (setq ok nil))
+                (error
+                 (setq ok nil)
+                 (message "%s: %s" file (error-message-string err))))))
+        (delete-directory tmp t))
+      (kill-emacs (if ok 0 1))))
+#+end_src
+
+*** Script
+
+#+name: check-byte-compile-script
+#+begin_src sh :tangle hooks/elisp-check-byte-compile :shebang "#!/bin/sh"
+  #
+  # Byte-compile a set of files and stop a commit that does not compile cleanly.
+  # Warnings are treated as errors and the .elc output is discarded.
+  #
+  # Usage:
+  #     elisp-check-byte-compile file1.el file2.el ...
+  set -eu
+
+  EMACS=${EMACS:-emacs}
+  root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+  program='<<check-byte-compile-program>>'
+
+  [ $# -gt 0 ] || exit 0
+
+  <<load-path>>
+
+  exec "$EMACS" -Q --batch "$@"
+#+end_src
+
+*** Tests
+
+#+name: check-byte-compile-good
+#+begin_src emacs-lisp
+  ;;; good.el --- Compiles cleanly -*- lexical-binding: t -*-
+  (defun good-add (a b)
+    "Return the sum of A and B."
+    (+ a b))
+  (provide (quote good))
+  ;;; good.el ends here
+#+end_src
+
+#+name: check-byte-compile-bad
+#+begin_src emacs-lisp
+  ;;; bad.el --- Does not compile cleanly; uses a free variable -*- lexical-binding: t -*-
+  (defun bad-add (a)
+    "Return A plus a variable nobody defined."
+    (+ a bad-undefined-variable))
+  (provide (quote bad))
+  ;;; bad.el ends here
+#+end_src
+
+#+begin_src sh
+  <<test-setup>>
+  cat > "$dir/hook" <<'EOF'
+  <<check-byte-compile-script>>
+  EOF
+  cat > "$dir/good.el" <<'EOF'
+  <<check-byte-compile-good>>
+  EOF
+  cat > "$dir/bad.el" <<'EOF'
+  <<check-byte-compile-bad>>
+  EOF
+  <<run-tests>>
+#+end_src
+
+** elisp-check-declare
+
+*** Program
+
+#+name: check-declare-program
+#+begin_src emacs-lisp
+  (progn
+    (require (quote check-declare))
+    (let ((failed nil))
+      (dolist (file command-line-args-left)
+        (check-declare-file file))
+      (let ((buf (get-buffer check-declare-warning-buffer)))
+        (when buf
+          (with-current-buffer buf
+            (goto-char (point-min))
+            (skip-chars-forward " \t\n\f")
+            (unless (eobp)
+              (setq failed t)
+              (princ (buffer-string))))))
+      (kill-emacs (if failed 1 0))))
+#+end_src
+
+*** Script
+
+#+name: check-declare-script
+#+begin_src sh :tangle hooks/elisp-check-declare :shebang "#!/bin/sh"
+  #
+  # Check declare-function forms and stop a commit where one has gone stale.
+  # Note that check-declare exits cleanly, so any warning is considered a failure.
+  #
+  # Usage:
+  #     elisp-check-declare file1.el file2.el ...
+  set -eu
+
+  EMACS=${EMACS:-emacs}
+  root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+  program='<<check-declare-program>>'
+
+  [ $# -gt 0 ] || exit 0
+
+  <<load-path>>
+
+  exec "$EMACS" -Q --batch "$@" 2>/dev/null
+#+end_src
+
+*** Tests
+
+#+name: check-declare-good
+#+begin_src emacs-lisp
+  ;;; good.el --- Declares a function that exists -*- lexical-binding: t -*-
+  (declare-function string-pad "subr-x" (string length &optional padding start))
+  ;;; good.el ends here
+#+end_src
+
+#+name: check-declare-bad
+#+begin_src emacs-lisp
+  ;;; bad.el --- Declares a function that does not exist -*- lexical-binding: t -*-
+  (declare-function bad-no-such-function "subr-x" (x))
+  ;;; bad.el ends here
+#+end_src
+
+#+begin_src sh
+  <<test-setup>>
+  cat > "$dir/hook" <<'EOF'
+  <<check-declare-script>>
+  EOF
+  cat > "$dir/good.el" <<'EOF'
+  <<check-declare-good>>
+  EOF
+  cat > "$dir/bad.el" <<'EOF'
+  <<check-declare-bad>>
+  EOF
+  <<run-tests>>
+#+end_src
+
+** elisp-indent
+
+*** Program
+
+#+name: indent-program
+#+begin_src emacs-lisp
+  (let ((changed nil))
+    (dolist (file command-line-args-left)
+      (condition-case err
+          (load (expand-file-name file) nil t)
+        (:success
+         (with-current-buffer (find-file-noselect file)
+           (let ((original (buffer-string)))
+             (let ((inhibit-message t))
+               (indent-region (point-min) (point-max)))
+             (unless (string= original (buffer-string))
+               (setq changed t)
+               (let ((inhibit-message t))
+                 (save-buffer))
+               (message "reindented %s" file)))))
+        (error
+         (message "left %s alone, it does not load: %s"
+                  file (error-message-string err)))))
+    (kill-emacs (if changed 1 0)))
+#+end_src
+
+*** Script
+
+#+name: indent-script
+#+begin_src sh :tangle hooks/elisp-indent :shebang "#!/bin/sh"
+  #
+  # Reindent a set of files in place and stop a commit that was misindented.
+  # A file that fails to load is reported and left alone, which is not a failure.
+  #
+  # Usage:
+  #     elisp-indent file1.el file2.el ...
+  set -eu
+
+  EMACS=${EMACS:-emacs}
+  root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+  program='<<indent-program>>'
+
+  [ $# -gt 0 ] || exit 0
+
+  <<load-path>>
+
+  exec "$EMACS" -Q --batch "$@"
+#+end_src
+
+*** Tests
+
+#+name: indent-good
+#+begin_src emacs-lisp
+  ;;; good.el --- Properly indented file -*- lexical-binding: t -*-
+  (defun good-add (a b)
+    "Return the sum of A and B."
+    (+ a b))
+  ;;; good.el ends here
+#+end_src
+
+#+name: indent-bad
+#+begin_src emacs-lisp
+  ;;; bad.el --- Misindented file -*- lexical-binding: t -*-
+  (defun bad-add (a b)
+  "Return the sum of A and B."
+        (+ a b))
+  ;;; bad.el ends here
+#+end_src
+
+#+begin_src sh
+  <<test-setup>>
+  cat > "$dir/hook" <<'EOF'
+  <<indent-script>>
+  EOF
+  cat > "$dir/good.el" <<'EOF'
+  <<indent-good>>
+  EOF
+  cat > "$dir/bad.el" <<'EOF'
+  <<indent-bad>>
+  EOF
+  show=1
+  <<run-tests>>
+#+end_src
+
+* COMMENT Local variables
+# Local Variables:
+# eval: (require 'ob-shell)
+# End:
